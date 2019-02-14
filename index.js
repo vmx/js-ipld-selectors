@@ -110,6 +110,11 @@ class SelectRecursive {
 }
 
 const buildSelector = (selector) => {
+  // This is here to make it easier for callers
+  if (selector === undefined) {
+    return null
+  }
+
   // The root level field is the type of the selector
   const keys = Object.keys(selector)
   if (keys.length > 1) {
@@ -142,8 +147,8 @@ const deserialize = async (block) => {
 // TODO vmx 2019-01-31: Error cases like having a node not locally available
 
 const select = async function* (block, selectors) {
-  debugger
-  let node = await deserialize(block)
+  // Always return the block where the traversal started
+  yield block
   // The stack of nodes that we still need to traverse. It's an array of
   // object with the following shape:
   //  - `selectors`: The selectors that should be applied to the nodes
@@ -151,7 +156,8 @@ const select = async function* (block, selectors) {
   const stack = []
   // Create an actual object out of the binary representation of a selector
   let selector = buildSelector(selectors.shift())
-  do {
+  let node = await deserialize(block)
+  while (selector !== null) {
     const result = selector.visit(node)
 
     // The selector didn't match the current node
@@ -161,7 +167,7 @@ const select = async function* (block, selectors) {
         // Prepare for the next iteration
         const siblings = stack.pop()
         node = siblings.nodes.shift()
-        selectors = sinlings.selectors
+        selectors = siblings.selectors
         selector = buildSelector(selectors.shift())
         // There are still nodes left to traverse in the future, hence push
         // them back on the stack
@@ -173,8 +179,13 @@ const select = async function* (block, selectors) {
         }
         // Let's continue with the sibling
         continue
-      } else {
-        return
+      } else { // Nothing else to do, we are finished with the traversal
+        // Signal that the selector wasn't fully resolved
+        if (selectors.length > 0) {
+          return selectors
+        } else {
+          return
+        }
       }
     } else { // We have a match
 
@@ -185,16 +196,17 @@ const select = async function* (block, selectors) {
       }
 
       if (CID.isCID(result.node)) {
-        // The current node was a full match on the selector, hence return
-        // the current block before getting the next one
-        yield block
-
         // Get Node and save it as current node
         block = await getBlock(result.node)
         // Error if you node is not locally available
         if (block === null) {
           throw new Error("Block doesn't exist")
         }
+        // As soon as we got a new block we return it. Even if the contents
+        // of this block doesn't match. The reason is that the verifier on
+        // the receiving side also needs to get non-matching nodes in order
+        // to verify that they don't match. It can't just trust the sender.
+        yield block
         node = await deserialize(block)
       } else if (Array.isArray(result.node)) {
         // Get the first child for the next iteration (we are doing depth-first
@@ -208,7 +220,7 @@ const select = async function* (block, selectors) {
         node = result.node
       }
     }
-  } while (selectors.length > 0)
+  }
 }
 
 
@@ -221,7 +233,11 @@ const main = async (argv) => {
   blockService = await utils.openBlockService(ipfsPath)
 
   const rootCid = new CID('zdpuAtrJV5fFSj6tpFw4s8xokdvCGxd6c25SYgZbUhchBf51j')
+  //const rootCid = new CID('zdpuB36ZuGVssQYZGusKbNhWh2EAt5XhEcf3Zy7dFme5WKynu')
   const selector = [
+    {"selectPath": "child"},
+    {"selectPath": "child"},
+    {"selectPath": "child"},
     {"selectPath": "child"},
     {"selectPath": "child"},
     {"selectPath": "child"},
@@ -230,8 +246,16 @@ const main = async (argv) => {
 
   const rootBlock = await getBlock(rootCid)
   const result = select(rootBlock, selector)
-  for await (const block of result) {
-    console.log('block:', block)
+
+  let next
+  for (next = await result.next(); !next.done; next = await result.next()) {
+   const block = next.value
+   console.log('block:', block.cid.toBaseEncodedString())
+  }
+  if (next.value !== undefined) {
+    console.log(`The selector wasn't fully resolved:`, next.value)
+  } else {
+    console.log(`done.`)
   }
 }
 
