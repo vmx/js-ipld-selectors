@@ -1,14 +1,23 @@
 'use strict'
 
+const fs = require('fs').promises
 const promisify = require('util').promisify
 
 const CID = require('cids')
 const ipldDagCbor = require('ipld-dag-cbor')
+const neodoc = require('neodoc')
 
 const utils = require('./utils.js')
 
 // TODO vmx 2019-02-12: This shouldn't be a global variable
 let blockService
+
+const helpText = `
+usage: ipld-selectors.js FILE
+
+arguments:
+    FILE  The file containing a selector (encoded as JSON)
+`
 
 class SelectPath {
   constructor (selector) {
@@ -144,8 +153,6 @@ const deserialize = async (block) => {
 }
 
 
-// TODO vmx 2019-01-31: Error cases like having a node not locally available
-
 const select = async function* (block, selectors) {
   // Always return the block where the traversal started
   yield block
@@ -223,39 +230,45 @@ const select = async function* (block, selectors) {
   }
 }
 
+const processSelector = async (selector) => {
+  // Every selector has a single root field
+  if (Object.keys(selector).length !== 1) {
+    throw new Error(
+      `The selector is invalid, it needs to have a single root field`
+    )
+  }
+
+  const [selectorType] = Object.keys(selector)
+  switch (selectorType) {
+    case 'cidRootedSelector':
+      const {root, selectors} = selector.cidRootedSelector
+      const rootBlock = await getBlock(new CID(root))
+      return select(rootBlock, selectors)
+      break
+    default:
+      throw new Error(`Unknown selector type: "${selectorType}"`)
+  }
+}
 
 const main = async (argv) => {
   const ipfsPath = process.env.IPFS_PATH
   if (ipfsPath === undefined) {
     throw Error('`IPFS_PATH` needs to be defined')
   }
-  //const rootCid = new CID(argv[2])
+
+  const args = neodoc.run(helpText)
+  const selector = JSON.parse(await fs.readFile(args.FILE))
   blockService = await utils.openBlockService(ipfsPath)
 
-  const rootCid = new CID('zdpuAtrJV5fFSj6tpFw4s8xokdvCGxd6c25SYgZbUhchBf51j')
-  //const rootCid = new CID('zdpuB36ZuGVssQYZGusKbNhWh2EAt5XhEcf3Zy7dFme5WKynu')
-  const selector = [
-    {"selectPath": "child"},
-    {"selectPath": "child"},
-    {"selectPath": "child"},
-    {"selectPath": "child"},
-    {"selectPath": "child"},
-    {"selectPath": "child"},
-    {"selectPath": "child"}
-  ]
-
-  const rootBlock = await getBlock(rootCid)
-  const result = select(rootBlock, selector)
+  const result = await processSelector(selector)
 
   let next
   for (next = await result.next(); !next.done; next = await result.next()) {
    const block = next.value
-   console.log('block:', block.cid.toBaseEncodedString())
+   console.log(block.cid.toBaseEncodedString())
   }
   if (next.value !== undefined) {
     console.log(`The selector wasn't fully resolved:`, next.value)
-  } else {
-    console.log(`done.`)
   }
 }
 
