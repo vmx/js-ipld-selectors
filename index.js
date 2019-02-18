@@ -146,6 +146,39 @@ class SelectArrayPosition {
   }
 }
 
+class SelectArraySlice {
+  constructor (selector) {
+    if ('start' in selector) {
+      this.start = selector.start
+    } else {
+      this.start = 0
+    }
+    if ('end' in selector) {
+      this.end = end
+    }
+  }
+
+  // `nodes` (`IPLDNode`, required): The IPLD Node the selector is matched on
+  // returns an object with these keys:
+  //  - `callAgain` (boolean): Is always `false`
+  //  - `node` (CID|Node): The node to follow next
+  visit (nodes) {
+    if (Array.isArray(nodes)) {
+      const slice = nodes.slice(this.start, this.end)
+      const result = {
+        node: slice.shift(),
+        callAgain: false
+      }
+      if (slice.length > 0) {
+        result.later = slice
+      }
+      return result
+    } else {
+      return null
+    }
+  }
+}
+
 class SelectRecursive {
   constructor (selector) {
     this.follow = selector.follow
@@ -246,6 +279,8 @@ const buildSelector = (selector) => {
       return new SelectArrayAll(selector[keys[0]])
     case 'selectArrayPosition':
       return new SelectArrayPosition(selector[keys[0]])
+    case 'selectArraySlice':
+      return new SelectArraySlice(selector[keys[0]])
     case 'selectRecursive':
       return new SelectRecursive(selector[keys[0]])
     default:
