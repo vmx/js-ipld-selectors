@@ -125,6 +125,27 @@ class SelectArrayAll {
   }
 }
 
+class SelectArrayPosition {
+  constructor (selector) {
+    this.position = selector
+  }
+
+  // `nodes` (`IPLDNode`, required): The IPLD Node the selector is matched on
+  // returns an object with these keys:
+  //  - `callAgain` (boolean): Is always `false`
+  //  - `node` (CID|Node): The node to follow next
+  visit (nodes) {
+    if (Array.isArray(nodes) && nodes[this.position] !== undefined) {
+      return {
+        node: nodes[this.position],
+        callAgain: false
+      }
+    } else {
+      return null
+    }
+  }
+}
+
 class SelectRecursive {
   constructor (selector) {
     this.follow = selector.follow
@@ -223,6 +244,8 @@ const buildSelector = (selector) => {
       return new SelectPath(selector[keys[0]])
     case 'selectArrayAll':
       return new SelectArrayAll(selector[keys[0]])
+    case 'selectArrayPosition':
+      return new SelectArrayPosition(selector[keys[0]])
     case 'selectRecursive':
       return new SelectRecursive(selector[keys[0]])
     default:
