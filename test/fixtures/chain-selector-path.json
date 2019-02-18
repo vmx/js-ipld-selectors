@@ -1,0 +1,12 @@
+{
+  "cidRootedSelector": {
+    "root": "zdpuB2n1ZHSWE3gsjbUgFdGV65pE546aJUHG7YeXDQ98pnEnN",
+    "selectors": [
+      {"selectPath": "parent"},
+      {"selectPath": "parent"},
+      {"selectPath": "parent"},
+      {"selectPath": "parent"},
+      {"selectPath": "parent"}
+    ]
+  }
+}

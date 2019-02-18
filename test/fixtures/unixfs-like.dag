@@ -1,0 +1,5 @@
+[type:json,id:root] {"some": "json"}
+  [type:json,linkname:Links/[]/multihash] {"data": "first item"}
+    [type:json,linkname:Links/[]/multihash] {"data": "sub first item"}
+  [type:json,linkname:Links/[]/multihash] {"data": "second item"}
+  [type:json,linkname:Links/[]/multihash] {"data": "third item"}

@@ -1,0 +1,10 @@
+[type:json,id:12345] {"version":1,"time":1240784732,"bits":486604799,"nonce":784807199}
+  [type:json,linkname:parent,id:12344] {"version":1,"time":1240783462,"bits":486604799,"nonce":2738723886}
+    [type:json,linkname:parent,id:12343] {"version":1,"time":1240783300,"bits":486604799,"nonce":65305899}
+      [type:json,linkname:parent,id:12342] {"version":1,"time":1240782745,"bits":486604799,"nonce":81517111}
+        [type:json,linkname:parent,id:12341] {"version":1,"time":1240782328,"bits":486604799,"nonce":2451985712}
+          [type:json,linkname:parent,id:12340] {"version":1,"time":1240781715,"bits":486604799,"nonce":23137779}
+            [type:json,linkname:parent,id:12339] {"version":1,"time":1240781584,"bits":486604799,"nonce":89242171}
+              [type:json,linkname:parent,id:12338] {"version":1,"time":1240781067,"bits":486604799,"nonce":1250124053}
+                [type:json,linkname:parent,id:12337] {"version":1,"time":1240780369,"bits":486604799,"nonce":2162399005}
+                  [type:json,linkname:parent,id:12336] {"version":1,"time":1240779257,"bits":486604799,"nonce":2454843955}

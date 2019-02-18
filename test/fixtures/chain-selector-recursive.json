@@ -1,0 +1,13 @@
+{
+  "cidRootedSelector": {
+    "root": "zdpuB2n1ZHSWE3gsjbUgFdGV65pE546aJUHG7YeXDQ98pnEnN",
+    "selectors": [
+      {"selectRecursive": {
+        "follow": [
+          {"selectPath": "parent"}
+        ],
+        "depthLimit": 5
+      }}
+    ]
+  }
+}

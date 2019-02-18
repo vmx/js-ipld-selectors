@@ -1,0 +1,14 @@
+{
+  "cidRootedSelector": {
+    "root": "zdpuAvxx5teZWaZKA7ygU4aJkaM4JxLAHePB8WbsCKMcpvg9N",
+    "selectors": [
+      {"selectRecursive": {
+        "follow": [
+          {"selectPath": "Links"},
+          {"selectArrayAll": null},
+          {"selectPath": "multihash"}
+        ]
+      }}
+    ]
+  }
+}
