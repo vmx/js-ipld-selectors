@@ -18,9 +18,6 @@ usage: ipld-selectors.js FILE
 arguments:
     FILE  The file containing a selector (encoded as JSON)
 `
-//usage: ipld-selectors.js [--include-id] FILE
-//options:
-//    -i, --include-id  Add the id speficied in the DAG file to the node (if the node is JSON)
 
 // General idea for implementing a new selector
 // The `visit()` method might get any IPLD data type. This means that it could
@@ -51,50 +48,6 @@ class SelectPath {
     }
   }
 }
-
-//class SelectArray {
-//  constructor (selector) {
-//    this.position = null
-//    this.slice = null
-//    if ('position' in selector) {
-//      this.position = selector.position
-//    }
-//    if ('slice' in selector) {
-//      this.slice = {}
-//      if ('start' in selector.slice) {
-//        this.slice.start = selector.slice.start
-//      } else {
-//        this.slice.start = 0
-//      }
-//      if ('end' in selector.slice) {
-//        this.slice.end = selector.slice.end
-//      }
-//    }
-//  }
-//
-//  // `node` (`IPLDNode`, required): The IPLD Node the selector is matched on
-//  // returns an object with these keys:
-//  //  - `callAgain` (boolean): Is always `false`
-//  //  - `node` (CID|Node|Array.<Node>): The node(s) to follow next
-//  visit (node) {
-//    if (Array.isArray(node)) {
-//      let returnValue
-//      if (this.position !== null) {
-//        returnValue = node[this.position]
-//      } else if (this.slice !== null) {
-//        returnValue = node.slice(this.slice.start, this.slice.end)
-//      } else {
-//        returnValue = node
-//      }
-//      return {
-//        node: returnValue,
-//        callAgain: false
-//      }
-//    } else {
-//      return null
-//    }
-//  }
-//}
 
 class SelectArrayAll {
   constructor (selector) {
