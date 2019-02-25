@@ -24,10 +24,7 @@ arguments:
 // also be an array of nodes. The return value returns the node(s) that are
 // the input for the next selector )`node`) and optionally nodes that will be
 // traversed later (`later`) (that's the case e.g. for the `SelectArrayAll`
-// and `SelectMapAll` selectors). Another field is `callAgain` which indicates
-// on whether the selector should be called again on the next iteration. This
-// is needed for recursive iterators.
-
+// and `SelectMapAll` selectors).
 class SelectPath {
   constructor (selector) {
     this.path = selector
@@ -35,13 +32,11 @@ class SelectPath {
 
   // `node` (`IPLDNode`, required): The IPLD Node the selector is matched on
   // returns an object with these keys:
-  //  - `callAgain` (boolean): Is always `false`
   //  - `node` (CID|Node|Array.<Node>): The node(s) to follow next
   visit (node) {
     if (this.path in node) {
       return {
-        node: node[this.path],
-        callAgain: false
+        node: node[this.path]
       }
     } else {
       return null
@@ -58,15 +53,13 @@ class SelectArrayAll {
 
   // `nodes` (`IPLDNode`, required): The IPLD Node the selector is matched on
   // returns an object with these keys:
-  //  - `callAgain` (boolean): Is always `false`
   //  - `node` (CID|Node): The nodes to follow next
   //  - `later` (Array.<CID>|Array.<Node>, optional): Additional nodes to
   //    follow next
   visit (nodes) {
     if (Array.isArray(nodes) && nodes.length > 0) {
       const result = {
-        node: nodes.shift(),
-        callAgain: false
+        node: nodes.shift()
       }
       if (nodes.length > 0) {
         result.later = nodes
@@ -85,13 +78,11 @@ class SelectArrayPosition {
 
   // `nodes` (`IPLDNode`, required): The IPLD Node the selector is matched on
   // returns an object with these keys:
-  //  - `callAgain` (boolean): Is always `false`
   //  - `node` (CID|Node): The node to follow next
   visit (nodes) {
     if (Array.isArray(nodes) && nodes[this.position] !== undefined) {
       return {
-        node: nodes[this.position],
-        callAgain: false
+        node: nodes[this.position]
       }
     } else {
       return null
@@ -113,14 +104,12 @@ class SelectArraySlice {
 
   // `nodes` (`IPLDNode`, required): The IPLD Node the selector is matched on
   // returns an object with these keys:
-  //  - `callAgain` (boolean): Is always `false`
   //  - `node` (CID|Node): The node to follow next
   visit (nodes) {
     if (Array.isArray(nodes)) {
       const slice = nodes.slice(this.start, this.end)
       const result = {
-        node: slice.shift(),
-        callAgain: false
+        node: slice.shift()
       }
       if (slice.length > 0) {
         result.later = slice
@@ -206,8 +195,6 @@ class SelectRecursive {
 
   // `node` (`IPLDNode`, required): The IPLD Node the selector is matched on
   // returns an object with these keys:
-  //  - `callAgain` (boolean): whether this selector should be called again
-  //    if it matched
   //  - `node` (CID|Node|Array.<Node>): The node(s) to follow next
   async visit (node) {
     return recursiveSelect(node, this.follow.slice(), this.depthLimit)
