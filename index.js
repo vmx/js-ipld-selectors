@@ -132,6 +132,68 @@ class SelectArraySlice {
   }
 }
 
+// Follow all nodes also siblings
+const recursiveSelect = async (node, selectors, depthLimit = null) => {
+  // The stack of nodes that we still need to traverse. It's an array of
+  // object with the following shape:
+  //  - `selectors`: The selectors that should be applied to the nodes
+  //  - `nodes`: The CIDs of the nodes that should be traversed
+  //  - `depthLimit`: If the depthLimit reaches zero, we will stop traversing
+  //    those nodes
+  const stack = []
+  // Keep the original selectors around in order to reset to their state
+  const originalSelectors = selectors.slice()
+
+  while (node && (depthLimit === null || depthLimit > 0)) {
+    // One call to selectNonRecursive is a single recursion step
+    const result = await nonRecursiveSelect(node, selectors)
+
+    // Push the siblings on the stack of nodes that should get visited
+    for (const item of result.stack) {
+      // Add the current depth limit so that the recursion can be stopped
+      // accordingly
+      item.depthLimit = depthLimit
+      stack.push(item)
+    }
+
+    // If a depth limit is given, count it down for every iteration
+    if (depthLimit !== null) {
+      depthLimit--
+    }
+
+    // There is a node that will be used for the next iteration. We also
+    // haven't hit the recursion limit yet.
+    if ('node' in result && (depthLimit === null || depthLimit > 0 )) {
+      node = result.node
+      // It's a new iteration, so we also need to reset the selctors
+      selectors = originalSelectors.slice()
+    } else {
+    // No matching node found
+      // There might be nodes that should get visited
+      if (stack.length > 0) {
+        // Prepare for the next iteration
+        const siblings = stack.pop()
+        node = siblings.nodes.shift()
+        selectors = siblings.selectors
+        depthLimit = siblings.depthLimit
+        // There are still nodes left to traverse in the future, hence push
+        // them back on the stack
+        if (siblings.nodes.length > 0) {
+          stack.push({
+            nodes: siblings.nodes,
+            selectors: siblings.selectors.slice(),
+            depthLimit: siblings.depthLimit
+          })
+        }
+        // Let's continue with the sibling
+        continue
+      } else { // Nothing else to do, we are finished with the traversal
+        return
+      }
+    }
+  }
+}
+
 class SelectRecursive {
   constructor (selector) {
     this.follow = selector.follow
@@ -148,68 +210,7 @@ class SelectRecursive {
   //    if it matched
   //  - `node` (CID|Node|Array.<Node>): The node(s) to follow next
   async visit (node) {
-    debugger
-    // The stack of nodes that we still need to traverse. It's an array of
-    // object with the following shape:
-    //  - `selectors`: The selectors that should be applied to the nodes
-    //  - `nodes`: The CIDs of the nodes that should be traversed
-    //  - `depthLimit`: If the depthLimit reaches zero, we will stop traversing
-    //    those nodes
-    let stack = []
-
-    // Create a copy of the depth limit
-    let depthLimit = this.depthLimit
-
-    // TODO vmx 2019-02-15: Is the copying of the selectors needed?
-    let selectors = this.follow.slice()
-    while (node && (depthLimit === null || depthLimit > 0)) {
-      // One call to selectNonRecursive is a single recursion step
-      const result = await nonRecursiveSelect(node, selectors)
-
-      // Push the siblings on the stack of nodes that should get visited
-      for (const item of result.stack) {
-        // Add the current depth limit so that the recursion can be stopped
-        // accordingly
-        item.depthLimit = depthLimit
-        stack.push(item)
-      }
-
-      // If a depth limit is given, count it down for every iteration
-      if (depthLimit !== null) {
-        depthLimit--
-      }
-
-      // There is a node that will be used for the next iteration. We also
-      // haven't hit the recursion limit yet.
-      if ('node' in result && (depthLimit === null || depthLimit > 0 )) {
-        node = result.node
-        // It's a new iteration, so we also need to reset the selctors
-        selectors = this.follow.slice()
-      } else {
-      // No matching node found
-        // There might be nodes that should get visited
-        if (stack.length > 0) {
-          // Prepare for the next iteration
-          const siblings = stack.pop()
-          node = siblings.nodes.shift()
-          selectors = siblings.selectors
-          depthLimit = siblings.depthLimit
-          // There are still nodes left to traverse in the future, hence push
-          // them back on the stack
-          if (siblings.nodes.length > 0) {
-            stack.push({
-              nodes: siblings.nodes,
-              selectors: siblings.selectors.slice(),
-              depthLimit: siblings.depthLimit
-            })
-          }
-          // Let's continue with the sibling
-          continue
-        } else { // Nothing else to do, we are finished with the traversal
-          return
-        }
-      }
-    }
+    return recursiveSelect(node, this.follow.slice(), this.depthLimit)
   }
 }
 
