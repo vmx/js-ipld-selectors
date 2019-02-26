@@ -33,7 +33,7 @@ class SelectPath {
   // `node` (`IPLDNode`, required): The IPLD Node the selector is matched on
   // returns an object with these keys:
   //  - `node` (CID|Node|Array.<Node>): The node(s) to follow next
-  visit (node) {
+  * visit (node) {
     if (this.path in node) {
       return {
         node: node[this.path]
@@ -56,7 +56,7 @@ class SelectArrayAll {
   //  - `node` (CID|Node): The nodes to follow next
   //  - `later` (Array.<CID>|Array.<Node>, optional): Additional nodes to
   //    follow next
-  visit (nodes) {
+  * visit (nodes) {
     if (Array.isArray(nodes) && nodes.length > 0) {
       const result = {
         node: nodes.shift()
@@ -79,7 +79,7 @@ class SelectArrayPosition {
   // `nodes` (`IPLDNode`, required): The IPLD Node the selector is matched on
   // returns an object with these keys:
   //  - `node` (CID|Node): The node to follow next
-  visit (nodes) {
+  * visit (nodes) {
     if (Array.isArray(nodes) && nodes[this.position] !== undefined) {
       return {
         node: nodes[this.position]
@@ -105,7 +105,7 @@ class SelectArraySlice {
   // `nodes` (`IPLDNode`, required): The IPLD Node the selector is matched on
   // returns an object with these keys:
   //  - `node` (CID|Node): The node to follow next
-  visit (nodes) {
+  * visit (nodes) {
     if (Array.isArray(nodes)) {
       const slice = nodes.slice(this.start, this.end)
       const result = {
@@ -122,7 +122,7 @@ class SelectArraySlice {
 }
 
 // Follow all nodes also siblings
-const recursiveSelect = async (node, selectors, depthLimit = null) => {
+const recursiveSelect = async function * (node, selectors, depthLimit = null) {
   // The stack of nodes that we still need to traverse. It's an array of
   // object with the following shape:
   //  - `selectors`: The selectors that should be applied to the nodes
@@ -135,7 +135,7 @@ const recursiveSelect = async (node, selectors, depthLimit = null) => {
 
   while (node && (depthLimit === null || depthLimit > 0)) {
     // One call to selectNonRecursive is a single recursion step
-    const result = await nonRecursiveSelect(node, selectors)
+    const result = yield * nonRecursiveSelect(node, selectors)
 
     // Push the siblings on the stack of nodes that should get visited
     for (const item of result.stack) {
@@ -177,7 +177,7 @@ const recursiveSelect = async (node, selectors, depthLimit = null) => {
         // Let's continue with the sibling
         continue
       } else { // Nothing else to do, we are finished with the traversal
-        return
+        return null
       }
     }
   }
@@ -196,8 +196,8 @@ class SelectRecursive {
   // `node` (`IPLDNode`, required): The IPLD Node the selector is matched on
   // returns an object with these keys:
   //  - `node` (CID|Node|Array.<Node>): The node(s) to follow next
-  async visit (node) {
-    return recursiveSelect(node, this.follow.slice(), this.depthLimit)
+  async * visit (node) {
+    return yield * recursiveSelect(node, this.follow.slice(), this.depthLimit)
   }
 }
 
@@ -231,7 +231,6 @@ const buildSelector = (selector) => {
 
 
 const getBlock = async (cid) => {
-  console.log(`loading block with cid: ${cid}`)
   return promisify(blockService.get.bind(blockService))(cid)
 }
 
@@ -242,7 +241,7 @@ const deserialize = async (block) => {
 
 // Returns either if the selector was fully applied or if there's no matching
 // node anymore
-const nonRecursiveSelect = async (node, selectors) => {
+const nonRecursiveSelect = async function * (node, selectors) {
   // The stack of nodes that we still need to traverse. It's an array of
   // object with the following shape:
   //  - `selectors`: The selectors that should be applied to the nodes
@@ -250,7 +249,7 @@ const nonRecursiveSelect = async (node, selectors) => {
   const stack = []
   do {
     const selector = buildSelector(selectors.shift())
-    const result = selector.visit(node)
+    const result = yield * selector.visit(node)
 
     // The selector didn't match the current node
     if (result === null) {
@@ -274,10 +273,15 @@ const nonRecursiveSelect = async (node, selectors) => {
       if (CID.isCID(result.node)) {
         // Get Node and save it as current node
         const block = await getBlock(result.node)
+
         // Error if you node is not locally available
         if (block === null) {
           throw new Error("Block doesn't exist")
         }
+
+        // Return every block we visit
+        yield block
+
         node = await deserialize(block)
       } else {
       // It's just a path within the current node. It might be an array
@@ -296,7 +300,7 @@ const nonRecursiveSelect = async (node, selectors) => {
   }
 }
 
-const processSelector = async (selector) => {
+const processSelector = async function * (selector) {
   // Every selector has a single root field
   if (Object.keys(selector).length !== 1) {
     throw new Error(
@@ -309,8 +313,9 @@ const processSelector = async (selector) => {
     case 'cidRootedSelector':
       const {root, selectors} = selector.cidRootedSelector
       const rootBlock = await getBlock(new CID(root))
+      yield rootBlock
       const rootNode = await deserialize(rootBlock)
-      return recursiveSelect(rootNode, selectors)
+      yield * recursiveSelect(rootNode, selectors)
       break
     default:
       throw new Error(`Unknown selector type: "${selectorType}"`)
@@ -339,14 +344,14 @@ const main = async (argv) => {
 
   const result = await processSelector(selector)
 
-  //let next
-  //for (next = await result.next(); !next.done; next = await result.next()) {
-  // const block = next.value
-  // console.log(block.cid.toBaseEncodedString())
-  //}
-  //if (next.value !== undefined) {
-  //  console.log(`The selector wasn't fully resolved:`, next.value)
-  //}
+  let next
+  for (next = await result.next(); !next.done; next = await result.next()) {
+  const block = next.value
+  console.log(block.cid.toBaseEncodedString())
+  }
+  if (next.value !== undefined) {
+   console.log(`The selector wasn't fully resolved:`, next.value)
+  }
 }
 
 if (require.main === module) {
