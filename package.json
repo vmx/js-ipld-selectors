@@ -1,4 +1,6 @@
 {
+  "main": "src/index.js",
+  "bin": "src/bin.js",
   "dependencies": {
     "cids": "^0.5.7",
     "ipfs-block-service": "^0.15.2",
