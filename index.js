@@ -357,13 +357,11 @@ const main = async (argv) => {
   const engine = new SelectorEngine(blockService)
   const result = await engine.select(selector)
 
-  let next
-  for (next = await result.next(); !next.done; next = await result.next()) {
-    const block = next.value
-    console.log(block.cid.toBaseEncodedString())
-  }
-  if (next.value !== undefined) {
-   console.log(`The selector wasn't fully resolved:`, next.value)
+  const finalValue = await asyncIteratorHelper(result, (item) => {
+    console.log(item.cid.toBaseEncodedString())
+  })
+  if (finalValue !== undefined) {
+   console.log(`The selector wasn't fully resolved:`, finalValue)
   }
 }
 
