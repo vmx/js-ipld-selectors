@@ -9,9 +9,6 @@ const neodoc = require('neodoc')
 
 const utils = require('./utils.js')
 
-// TODO vmx 2019-02-12: This shouldn't be a global variable
-let blockService
-
 const helpText = `
 usage: ipld-selectors.js FILE
 
@@ -31,6 +28,8 @@ class SelectPath {
   }
 
   // `node` (`IPLDNode`, required): The IPLD Node the selector is matched on
+  // `engine` (`SelectorEngine`, optional): The selector engine in order to
+  //   fresh blocks
   // returns an object with these keys:
   //  - `node` (CID|Node|Array.<Node>): The node(s) to follow next
   * visit (node) {
@@ -52,6 +51,8 @@ class SelectArrayAll {
   }
 
   // `nodes` (`IPLDNode`, required): The IPLD Node the selector is matched on
+  // `engine` (`SelectorEngine`, optional): The selector engine in order to
+  //   fresh blocks
   // returns an object with these keys:
   //  - `node` (CID|Node): The nodes to follow next
   //  - `later` (Array.<CID>|Array.<Node>, optional): Additional nodes to
@@ -77,6 +78,8 @@ class SelectArrayPosition {
   }
 
   // `nodes` (`IPLDNode`, required): The IPLD Node the selector is matched on
+  // `engine` (`SelectorEngine`, optional): The selector engine in order to
+  //   fresh blocks
   // returns an object with these keys:
   //  - `node` (CID|Node): The node to follow next
   * visit (nodes) {
@@ -103,6 +106,8 @@ class SelectArraySlice {
   }
 
   // `nodes` (`IPLDNode`, required): The IPLD Node the selector is matched on
+  // `engine` (`SelectorEngine`, optional): The selector engine in order to
+  //   fresh blocks
   // returns an object with these keys:
   //  - `node` (CID|Node): The node to follow next
   * visit (nodes) {
@@ -121,68 +126,6 @@ class SelectArraySlice {
   }
 }
 
-// Follow all nodes also siblings
-const recursiveSelect = async function * (node, selectors, depthLimit = null) {
-  // The stack of nodes that we still need to traverse. It's an array of
-  // object with the following shape:
-  //  - `selectors`: The selectors that should be applied to the nodes
-  //  - `nodes`: The CIDs of the nodes that should be traversed
-  //  - `depthLimit`: If the depthLimit reaches zero, we will stop traversing
-  //    those nodes
-  const stack = []
-  // Keep the original selectors around in order to reset to their state
-  const originalSelectors = selectors.slice()
-
-  while (node && (depthLimit === null || depthLimit > 0)) {
-    // One call to selectNonRecursive is a single recursion step
-    const result = yield * nonRecursiveSelect(node, selectors)
-
-    // Push the siblings on the stack of nodes that should get visited
-    for (const item of result.stack) {
-      // Add the current depth limit so that the recursion can be stopped
-      // accordingly
-      item.depthLimit = depthLimit
-      stack.push(item)
-    }
-
-    // If a depth limit is given, count it down for every iteration
-    if (depthLimit !== null) {
-      depthLimit--
-    }
-
-    // There is a node that will be used for the next iteration. We also
-    // haven't hit the recursion limit yet.
-    if ('node' in result && (depthLimit === null || depthLimit > 0 )) {
-      node = result.node
-      // It's a new iteration, so we also need to reset the selctors
-      selectors = originalSelectors.slice()
-    } else {
-    // No matching node found
-      // There might be nodes that should get visited
-      if (stack.length > 0) {
-        // Prepare for the next iteration
-        const siblings = stack.pop()
-        node = siblings.nodes.shift()
-        selectors = siblings.selectors
-        depthLimit = siblings.depthLimit
-        // There are still nodes left to traverse in the future, hence push
-        // them back on the stack
-        if (siblings.nodes.length > 0) {
-          stack.push({
-            nodes: siblings.nodes,
-            selectors: siblings.selectors.slice(),
-            depthLimit: siblings.depthLimit
-          })
-        }
-        // Let's continue with the sibling
-        continue
-      } else { // Nothing else to do, we are finished with the traversal
-        return null
-      }
-    }
-  }
-}
-
 class SelectRecursive {
   constructor (selector) {
     this.follow = selector.follow
@@ -195,9 +138,12 @@ class SelectRecursive {
 
   // `node` (`IPLDNode`, required): The IPLD Node the selector is matched on
   // returns an object with these keys:
+  // `engine` (`SelectorEngine`, required): The selector engine in order to
+  //   fresh blocks
   //  - `node` (CID|Node|Array.<Node>): The node(s) to follow next
-  async * visit (node) {
-    return yield * recursiveSelect(node, this.follow.slice(), this.depthLimit)
+  async * visit (node, engine) {
+    return yield * engine.recursiveSelect(
+      node, this.follow.slice(), this.depthLimit)
   }
 }
 
@@ -230,95 +176,162 @@ const buildSelector = (selector) => {
 }
 
 
-const getBlock = async (cid) => {
-  return promisify(blockService.get.bind(blockService))(cid)
-}
 
 // TODO vmx 2019-02-12: Support more than just CBOR
 const deserialize = async (block) => {
   return promisify(ipldDagCbor.util.deserialize)(block.data)
 }
 
-// Returns either if the selector was fully applied or if there's no matching
-// node anymore
-const nonRecursiveSelect = async function * (node, selectors) {
-  // The stack of nodes that we still need to traverse. It's an array of
-  // object with the following shape:
-  //  - `selectors`: The selectors that should be applied to the nodes
-  //  - `nodes`: The CIDs of the nodes that should be traversed
-  const stack = []
-  do {
-    const selector = buildSelector(selectors.shift())
-    const result = yield * selector.visit(node)
 
-    // The selector didn't match the current node
-    if (result === null) {
-      // return the siblings that still need to get traversed
-      return {
-        stack
-      }
-    } else {
-    // We have a match
-      // There is sibling nodes to be traversed later
-      if ('later' in result) {
-       // Push the nodes on top of the stack for future traversal
-       stack.push({
-         nodes: result.later,
-         selectors: selectors.slice()
-       })
-      }
+class SelectorEngine {
+  constructor(blockService) {
+    // Get blocks from the Block Service
+    this._getBlock = promisify(blockService.get.bind(blockService))
+  }
 
-      // The next node to traverse is a CID, so let's keep traversing deeper
-      //if (CID.isCID(node) || CID.isCID(result.node)) {
-      if (CID.isCID(result.node)) {
-        // Get Node and save it as current node
-        const block = await getBlock(result.node)
+  async * select (selector) {
+    // Every selector has a single root field
+    if (Object.keys(selector).length !== 1) {
+      throw new Error(
+        `The selector is invalid, it needs to have a single root field`
+      )
+    }
 
-        // Error if you node is not locally available
-        if (block === null) {
-          throw new Error("Block doesn't exist")
+    const [selectorType] = Object.keys(selector)
+    switch (selectorType) {
+      case 'cidRootedSelector':
+        const {root, selectors} = selector.cidRootedSelector
+        const rootBlock = await this._getBlock(new CID(root))
+        yield rootBlock
+        const rootNode = await deserialize(rootBlock)
+        yield * this.recursiveSelect(rootNode, selectors)
+        break
+      default:
+        throw new Error(`Unknown selector type: "${selectorType}"`)
+    }
+  }
+
+  // Returns either if the selector was fully applied or if there's no matching
+  // node anymore
+  async * nonRecursiveSelect (node, selectors) {
+    // The stack of nodes that we still need to traverse. It's an array of
+    // object with the following shape:
+    //  - `selectors`: The selectors that should be applied to the nodes
+    //  - `nodes`: The CIDs of the nodes that should be traversed
+    const stack = []
+    do {
+      const selector = buildSelector(selectors.shift())
+      const result = yield * selector.visit(node, this)
+
+      // The selector didn't match the current node
+      if (result === null) {
+        // return the siblings that still need to get traversed
+        return {
+          stack
+        }
+      } else {
+      // We have a match
+        // There is sibling nodes to be traversed later
+        if ('later' in result) {
+         // Push the nodes on top of the stack for future traversal
+         stack.push({
+           nodes: result.later,
+           selectors: selectors.slice()
+         })
         }
 
-        // Return every block we visit
-        yield block
+        // The next node to traverse is a CID, so let's keep traversing deeper
+        //if (CID.isCID(node) || CID.isCID(result.node)) {
+        if (CID.isCID(result.node)) {
+          // Get Node and save it as current node
+          const block = await this._getBlock(result.node)
 
-        node = await deserialize(block)
-      } else {
-      // It's just a path within the current node. It might be an array
-      // of nodes.
+          // Error if you node is not locally available
+          if (block === null) {
+            throw new Error("Block doesn't exist")
+          }
+
+          // Return every block we visit
+          yield block
+
+          node = await deserialize(block)
+        } else {
+        // It's just a path within the current node. It might be an array
+        // of nodes.
+          node = result.node
+        }
+      }
+    } while (selectors.length > 0)
+
+    // The selector fully matched, but we might be in the middle of a node that
+    // we want to traverse in sub-sequent calls. Hence return the current node
+    // fragment we are currently at
+    return {
+      node,
+      stack
+    }
+  }
+
+  // Follow all nodes including siblings
+  async * recursiveSelect (node, selectors, depthLimit = null) {
+    // The stack of nodes that we still need to traverse. It's an array of
+    // object with the following shape:
+    //  - `selectors`: The selectors that should be applied to the nodes
+    //  - `nodes`: The CIDs of the nodes that should be traversed
+    //  - `depthLimit`: If the depthLimit reaches zero, we will stop traversing
+    //    those nodes
+    const stack = []
+    // Keep the original selectors around in order to reset to their state
+    const originalSelectors = selectors.slice()
+
+    while (node && (depthLimit === null || depthLimit > 0)) {
+      // One call to selectNonRecursive is a single recursion step
+      const result = yield * this.nonRecursiveSelect(node, selectors)
+
+      // Push the siblings on the stack of nodes that should get visited
+      for (const item of result.stack) {
+        // Add the current depth limit so that the recursion can be stopped
+        // accordingly
+        item.depthLimit = depthLimit
+        stack.push(item)
+      }
+
+      // If a depth limit is given, count it down for every iteration
+      if (depthLimit !== null) {
+        depthLimit--
+      }
+
+      // There is a node that will be used for the next iteration. We also
+      // haven't hit the recursion limit yet.
+      if ('node' in result && (depthLimit === null || depthLimit > 0 )) {
         node = result.node
+        // It's a new iteration, so we also need to reset the selctors
+        selectors = originalSelectors.slice()
+      } else {
+      // No matching node found
+        // There might be nodes that should get visited
+        if (stack.length > 0) {
+          // Prepare for the next iteration
+          const siblings = stack.pop()
+          node = siblings.nodes.shift()
+          selectors = siblings.selectors
+          depthLimit = siblings.depthLimit
+          // There are still nodes left to traverse in the future, hence push
+          // them back on the stack
+          if (siblings.nodes.length > 0) {
+            stack.push({
+              nodes: siblings.nodes,
+              selectors: siblings.selectors.slice(),
+              depthLimit: siblings.depthLimit
+            })
+          }
+          // Let's continue with the sibling
+          continue
+        } else { // Nothing else to do, we are finished with the traversal
+          return null
+        }
       }
     }
-  } while (selectors.length > 0)
-
-  // The selector fully matched, but we might be in the middle of a node that
-  // we want to traverse in sub-sequent calls. Hence return the current node
-  // fragment we are currently at
-  return {
-    node,
-    stack
-  }
-}
-
-const processSelector = async function * (selector) {
-  // Every selector has a single root field
-  if (Object.keys(selector).length !== 1) {
-    throw new Error(
-      `The selector is invalid, it needs to have a single root field`
-    )
-  }
-
-  const [selectorType] = Object.keys(selector)
-  switch (selectorType) {
-    case 'cidRootedSelector':
-      const {root, selectors} = selector.cidRootedSelector
-      const rootBlock = await getBlock(new CID(root))
-      yield rootBlock
-      const rootNode = await deserialize(rootBlock)
-      yield * recursiveSelect(rootNode, selectors)
-      break
-    default:
-      throw new Error(`Unknown selector type: "${selectorType}"`)
   }
 }
 
@@ -340,14 +353,14 @@ const main = async (argv) => {
 
   const args = neodoc.run(helpText)
   const selector = JSON.parse(await fs.readFile(args.FILE))
-  blockService = await utils.openBlockService(ipfsPath)
-
-  const result = await processSelector(selector)
+  const blockService = await utils.openBlockService(ipfsPath)
+  const engine = new SelectorEngine(blockService)
+  const result = await engine.select(selector)
 
   let next
   for (next = await result.next(); !next.done; next = await result.next()) {
-  const block = next.value
-  console.log(block.cid.toBaseEncodedString())
+    const block = next.value
+    console.log(block.cid.toBaseEncodedString())
   }
   if (next.value !== undefined) {
    console.log(`The selector wasn't fully resolved:`, next.value)
