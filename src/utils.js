@@ -16,6 +16,11 @@ const openBlockService = promisify((ipfsRepoPath, callback) => {
   })
 })
 
+const closeBlockService = async (blockService) => {
+  await promisify(blockService._repo.close.bind(blockService._repo))()
+}
+
 module.exports = {
+  closeBlockService,
   openBlockService
 }

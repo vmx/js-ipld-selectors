@@ -42,6 +42,7 @@ const main = async (argv) => {
   if (finalValue !== undefined) {
    console.log(`The selector wasn't fully resolved:`, finalValue)
   }
+  await utils.closeBlockService(blockService)
 }
 
 main(process.argv).catch((error) => {
