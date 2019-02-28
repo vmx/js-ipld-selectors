@@ -51,8 +51,7 @@ describe('fixtures for', () => {
 
       before(async () => {
         console.log(`Loading DAG with ${category}.dag into ${ipfsPath}`)
-        const result = dagbuilder(
-          ipfsPath, `${FIXTURES_DIR}/${category}.dag`, { includeId: true })
+        const result = dagbuilder(ipfsPath, `${FIXTURES_DIR}/${category}.dag`)
         await drainGenerator(result)
       })
 
