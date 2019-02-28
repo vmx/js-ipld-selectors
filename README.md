@@ -85,6 +85,11 @@ zdpuB2cr95Uc3z8zDPC6U3CXvvZK4pk4wNu47UeunphPMXqou
  - `selector` (`IPLD Selector`): the selector that should be used. Currently the selectors are JSON encoded. For more information, see the [IPLD Selector specification](https://github.com/ipld/specs/blob/7ba014c1b6868514eb461db3c3126136b9250bdc/selectors/selectors.md). Examples can be found in the [`test/fixtures/`](test/fixtures) directory.
 
 
+## Tests
+
+Tests can be run via `npm run test`. If you want to add new tests, see the [README in the `test/fixtures` directory](test/fixtures/README.md) for more information.
+
+
 ## Contribute
 
 Feel free to join in. All welcome. Open an [issue](https://github.com/vmx/js-ipld-selectors/issues)!
