@@ -193,7 +193,9 @@ class SelectorEngine {
         const rootBlock = await this._getBlock(new CID(root))
         yield rootBlock
         const rootNode = await deserialize(rootBlock)
-        yield * this.nonRecursiveSelect(rootNode, selectors)
+        // The root selector is not recursive, but it might still need to
+        // traverse siblings. Hence use a depth limit of 1
+        yield * this.recursiveSelect(rootNode, selectors, 1)
         break
       default:
         throw new Error(`Unknown selector type: "${selectorType}"`)
