@@ -47,7 +47,19 @@ The selector engine is using an [IPFS Block Service](https://github.com/ipfs/js-
 ```javascript
 const { SelectorEngine } = require('ipld-selectors')
 
-const blockServie = …
+const blockService = …
+const selector = {
+  "cidRootedSelector": {
+    "root": "zdpuAwmV7jYT8ynSL28JDdoZ1CRKv3AUbudkYqyeovcvS1aGe",
+    "selectors": [
+      {"selectPath": "parent"},
+      {"selectPath": "parent"},
+      {"selectPath": "parent"},
+      {"selectPath": "parent"},
+      {"selectPath": "parent"}
+    ]
+  }
+}
 const engine = new SelectorEngine(blockService)
 const result = await engine.select(selector)
 
