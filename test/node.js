@@ -3,6 +3,7 @@
 
 const fs = require('fs')
 const os = require('os')
+const promisify = require('util').promisify
 
 const chai = require('chai')
 const dagbuilder = require('dagbuilder')
@@ -61,7 +62,8 @@ describe('fixtures for', () => {
             `${FIXTURES_DIR}/${basename}.json`)
 
           const blockService = await utils.openBlockService(ipfsPath)
-          const engine = new SelectorEngine(blockService)
+          const getBlockFun = promisify(blockService.get.bind(blockService))
+          const engine = new SelectorEngine(getBlockFun)
           const result = await engine.select(
            JSON.parse(selectorDescription.toString()))
           const resultArray = await drainGenerator(result)

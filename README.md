@@ -45,9 +45,9 @@ zdpuAwmV7jYT8ynSL28JDdoZ1CRKv3AUbudkYqyeovcvS1aGe 12345 {"version":1,"time":1240
 The selector engine is using an [IPFS Block Service](https://github.com/ipfs/js-ipfs-block-service) instance to get the blocks for traversal.
 
 ```javascript
+const promisify = require('util').promisify
 const { SelectorEngine } = require('ipld-selectors')
 
-const blockService = …
 const selector = {
   "cidRootedSelector": {
     "root": "zdpuAwmV7jYT8ynSL28JDdoZ1CRKv3AUbudkYqyeovcvS1aGe",
@@ -60,7 +60,9 @@ const selector = {
     ]
   }
 }
-const engine = new SelectorEngine(blockService)
+const blockService = …
+const getBlockFun = promisify(blockService.get.bind(blockService))
+const engine = new SelectorEngine(getBlockFun)
 const result = await engine.select(selector)
 
 for await (const block in result) {
@@ -88,7 +90,7 @@ zdpuB2cr95Uc3z8zDPC6U3CXvvZK4pk4wNu47UeunphPMXqou
 
 ### constructor
 
- - `blockService` ([`IPFS Block Service`](https://github.com/ipfs/js-ipfs-block-service), required): a Block Service to the blocks from.
+ - `getBlock` (`async function(cid): Promise<Block>`, required): An async function to retrieve a block. It takes a CID as parameter.
 
 ### select(selector)
 

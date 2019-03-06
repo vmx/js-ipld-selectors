@@ -1,6 +1,7 @@
 'use strict'
 
 const fs = require('fs').promises
+const promisify = require('util').promisify
 
 const neodoc = require('neodoc')
 
@@ -33,7 +34,8 @@ const main = async (argv) => {
   const args = neodoc.run(helpText)
   const selector = JSON.parse(await fs.readFile(args.FILE))
   const blockService = await utils.openBlockService(ipfsPath)
-  const engine = new SelectorEngine(blockService)
+  const getBlockFun = promisify(blockService.get.bind(blockService))
+  const engine = new SelectorEngine(getBlockFun)
   const result = await engine.select(selector)
 
   const finalValue = await asyncIteratorHelper(result, (item) => {

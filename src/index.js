@@ -172,10 +172,19 @@ const deserialize = async (block) => {
 }
 
 
+/**
+ * Retrieve a block by CID.
+ * @typedef {function(CID): Promise<Block>} GetBlock
+ */
+
 class SelectorEngine {
-  constructor(blockService) {
-    // Get blocks from the Block Service
-    this._getBlock = promisify(blockService.get.bind(blockService))
+  /**
+   * Initialize the selector engine.
+   * @param {GetBlock} getBlock - An async function to retrieve a block. It takes a CID as paramter.
+   */
+  constructor(getBlock) {
+    // Returns a block for a given CID
+    this._getBlock = getBlock
   }
 
   async * select (selector) {
